@@ -139,38 +139,42 @@ benchmark_ffmpeg() {
   # $1 = start image
   # $2 = output
 
+  benchmark="XFADE"
   echo " "
-  echo "## BENCHMARK FFMPEG"
-  lowres="$tmp_dir/lowres.jpg"
+  echo "## BENCHMARK $benchmark"
+  lowres="$tmp_dir/$benchmark.lowres.jpg"
   orginal_size=$(identify -format "%wx%h\n" "$1")
-  echo "* prep ffmpeg: $SECONDS"
-  convert "$1" -resize 1% -modulate 100,1  -resize "$orginal_size!" "$lowres"
-  length=10
+  echo "* prep $benchmark: $SECONDS"
+  convert "$1" -resize 5% -modulate 100,1 -resize "$orginal_size!" "$lowres"
+  length=5
   fps=10
-  echo "* start ffmpeg: $SECONDS"
+  echo "* start $benchmark: $SECONDS"
   FFMPEG=$(which ffmpeg)
   echo "* ffmpeg version: $FFMPEG - $($FFMPEG -version | head -1)"
   echo "* output length: $length secs @ $fps fps"
   "$FFMPEG" -loop 1 -i "$lowres" -loop 1 -i "$1" -r "$fps" -vcodec libx264 -pix_fmt yuv420p \
     -filter_complex "[1:v][0:v]blend=all_expr='A*(if(gte(T,$length),1,T/$length))+B*(1-(if(gte(T,$length),1,T/$length)))'" \
     -t $length -y "$2" 2> /dev/null
-  echo "* output size: $(du -b "$2")"
-  echo "* finish ffmpeg: $SECONDS"
+  output_kb=$(du -k "$2" | awk '{print $1}')
+  echo "* output size: $((output_kb / 1000)) KB"
+  echo "* finish $benchmark: $SECONDS"
 
 }
 
 benchmark_primitive() {
   # $1 = input jpeg file
   # $2 = output gif file
+  benchmark="PRIMITIVE"
   echo " "
-  echo "## BENCHMARK PRIMITIVE:$SECONDS"
-  echo "* start primitive: $SECONDS"
+  echo "## BENCHMARK $benchmark"
+  echo "* start $benchmark: $SECONDS"
   shapes=1000
   width=1200
   echo "* width: $width px / $shapes shapes"
   primitive -i "$1" -o "$2" -s "$width" -n "$shapes" -m 7 -bg FFFFFF
-  echo "* output size: $(du -b "$2")"
-  echo "* finish primitive: $SECONDS"
+  output_kb=$(du -k "$2" | awk '{print $1}')
+  echo "* output size: $((output_kb / 1000)) KB"
+  echo "* finish $benchmark: $SECONDS"
 }
 
 #####################################################################
