@@ -12,18 +12,28 @@ Some benchmarks of MacOS M1 (Apple Silicon)
 
 ## Installation
 
-with [basher](https://github.com/basherpm/basher)
-
-	$ basher install pforret/m1_benchmark
-
-or with `git`
-
-	$ git clone https://github.com/pforret/m1_benchmark.git
-	$ cd m1_benchmark
+```
+git clone https://github.com/pforret/m1_benchmark.git
+cd m1_benchmark
+./m1_benchmark run
+```
 
 ## Usage
 
-	> m1_benchmark.sh [action]
+```
+Program: m1_benchmark 0.0.1 by peter@forret.com
+Updated: Jan  7 21:54:54 2021
+Description: Some benchmarks of MacOS M1 (Apple Silicon)
+Usage: m1_benchmark [-f] [-h] [-q] [-v] [-l <log_dir>] [-t <tmp_dir>] [-w <width>] <action>
+Flags, options and parameters:
+-f|--force       : [flag] do not ask for confirmation (always yes) [default: off]
+-h|--help        : [flag] show usage [default: off]
+-q|--quiet       : [flag] no output [default: off]
+-v|--verbose     : [flag] output more [default: off]
+-l|--log_dir <?> : [option] folder for log files   [default: $HOME/log/m1_benchmark]
+-t|--tmp_dir <?> : [option] folder for temp files  [default: .tmp]
+<action>         : [parameter] action to perform: run/list
+```
 
 ## Acknowledgements
 

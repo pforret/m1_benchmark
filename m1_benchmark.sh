@@ -35,10 +35,7 @@ flag|v|verbose|output more
 flag|f|force|do not ask for confirmation (always yes)
 option|l|log_dir|folder for log files |$HOME/log/$script_prefix
 option|t|tmp_dir|folder for temp files|.tmp
-option|w|width|width to use|800
-param|1|action|action to perform: analyze/convert
-param|?|input|input file
-param|?|output|output file
+param|1|action|action to perform: run/list
 " |
     grep -v '^#' |
     sort
@@ -54,7 +51,9 @@ list_dependencies() {
   #progressbar|basher install pforret/progressbar
   echo -n "
 gawk
-curl
+ffmpeg
+convert|imagemagick
+primitive|go get -u github.com/fogleman/primitive
 " |
     grep -v "^#" |
     sort
@@ -82,18 +81,38 @@ main() {
     list_dependencies | cut -d'|' -f1 | sort | xargs
     ;;
 
-  analyze)
-    #TIP: use «$script_prefix analyze» to analyze an input file
-    #TIP:> $script_prefix analyze input.txt
-    # shellcheck disable=SC2154
-    do_analyze "$input"
+  run)
+    #TIP: use «$script_prefix run» to run all the benchmarks
+    #TIP:> $script_prefix run
+
+    input="$script_install_folder/sources/david-marcu-o0RZkkL072U-unsplash.jpg"
+    unique=$(echo "$HOSTNAME $os_name $os_machine" | hash 10)
+    result_folder="$script_install_folder/results/${os_name}-${os_machine}"
+    [[ ! -d "$result_folder" ]] && mkdir "$result_folder"
+    machine_type=$(system_profiler SPHardwareDataType | awk -F: '/Model Identifier/ {gsub(" ",""); print $2}')
+    ram_bytes=$(sysctl -n hw.memsize)
+    ram_gb=$(( ram_bytes / 1000000000 ))
+    cpu_count=$(sysctl -n hw.ncpu)
+    gpu_type=$(system_profiler SPDisplaysDataType | grep Chipset | cut -d: -f2)
+    install_date=$(< /var/log/install.log awk 'NR == 1 {print $1}')
+    output="$result_folder/$execution_day.$unique.md"
+    (
+    echo "# $os_name $os_version $os_machine"
+    echo "* Script executed : $execution_day"
+    echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gb GB RAM - $gpu_type GPU"
+    echo "* OS Details      : $os_name $os_version"
+    echo "* OS Install date : $install_date"
+    benchmark_ffmpeg "$input" "$tmp_dir/xfade.mp4"
+    benchmark_primitive "$input" "$tmp_dir/primitive.gif"
+    echo "Time to finish: $SECONDS"
+    ) | tee "$output"
+
     ;;
 
-  convert)
-    #TIP: use «$script_prefix convert» to convert input into output
-    #TIP:> $script_prefix convert input.txt output.pdf
-    # shellcheck disable=SC2154
-    do_convert "$input" "$output"
+  list)
+    #TIP: use «$script_prefix list» to show all results
+    #TIP:> $script_prefix list input.txt output.pdf
+    do_list
     ;;
 
   *)
@@ -109,14 +128,35 @@ main() {
 ## Put your helper scripts here
 #####################################################################
 
-do_analyze() {
+do_list() {
   log_to_file "Analyze [$input]"
   # < "$1"  do_analysis_stuff
 }
 
-do_convert() {
-  log_to_file "Convert [$input] -> [$output]"
-  # < "$1"  do_conversion_stuff > "$2"
+benchmark_ffmpeg() {
+  # $1 = start image
+  # $2 = output
+
+  echo " "
+  echo "## START FFMPEG:$SECONDS"
+  lowres="$tmp_dir/lowres.jpg"
+  orginal_size=$(identify -format "%wx%h\n" "$1")
+  convert "$1" -resize 1% -modulate 100,1  -resize "$orginal_size!" "$lowres"
+  length=20
+  ffmpeg -loop 1 -i "$lowres" -loop 1 -i "$1" -r 12 -vcodec libx264 -pix_fmt yuv420p \
+    -filter_complex "[1:v][0:v]blend=all_expr='A*(if(gte(T,$length),1,T/$length))+B*(1-(if(gte(T,$length),1,T/$length)))'" \
+    -t $length -y "$2" 2> /dev/null
+  echo "## FINISH FFMPEG:$SECONDS"
+
+}
+
+benchmark_primitive() {
+  # $1 = input jpeg file
+  # $2 = output gif file
+  echo " "
+  echo "## START PRIMITIVE:$SECONDS"
+  primitive -i "$1" -o "$2" -s 1200 -r "80" -n "1000" -m 7 -bg FFFFFF
+  echo "## FINISH PRIMITIVE:$SECONDS"
 }
 
 #####################################################################
@@ -342,8 +382,6 @@ init_options() {
 }
 
 require_binaries() {
-  os_name=$(uname -s)
-  os_version=$(uname -prm)
   debug "Running: $os_name ($os_version)"
   [[ -n "${ZSH_VERSION:-}" ]] && debug "Running: zsh $ZSH_VERSION"
   [[ -n "${BASH_VERSION:-}" ]] && debug "Running: bash $BASH_VERSION"
@@ -561,19 +599,22 @@ lookup_script_data() {
   debug "Shell type : $shell_brand - version $shell_version"
 
   readonly os_kernel=$(uname -s)
-  os_version=$(uname -r)
-  os_machine=$(uname -m)
+  os_version=$(uname -r) # 20.2.0
+  os_machine=$(uname -m) # arm64
   install_package=""
   case "$os_kernel" in
   CYGWIN* | MSYS* | MINGW*)
+    debug "Detected Windows"
     os_name="Windows"
     ;;
   Darwin)
+    debug "Detected MacOS"
     os_name=$(sw_vers -productName)       # macOS
     os_version=$(sw_vers -productVersion) # 11.1
     install_package="brew install"
     ;;
   Linux | GNU*)
+    debug "Detected Linux"
     if [[ $(which lsb_release) ]]; then
       # 'normal' Linux distributions
       os_name=$(lsb_release -i)    # Ubuntu
@@ -621,7 +662,7 @@ lookup_script_data() {
   # get script version from VERSION.md file - which is automatically updated by pforret/setver
   [[ -f "$script_install_folder/VERSION.md" ]] && script_version=$(cat "$script_install_folder/VERSION.md")
   # get script version from git tag file - which is automatically updated by pforret/setver
-  [[ -n "$git_repo_root" ]] && [[ -n "$(git tag &> /dev/null)" ]] && script_version=$(git tag --sort=version:refname | tail -1)
+  [[ -n "$git_repo_root" ]] && [[ -n "$(git tag &>/dev/null)" ]] && script_version=$(git tag --sort=version:refname | tail -1)
 }
 
 prep_log_and_temp_dir() {
@@ -653,7 +694,7 @@ import_env_if_any() {
   done
 }
 
-[[ $run_as_root == 1 ]]  && [[ $UID -ne 0 ]] && die "user is $USER, MUST be root to run [$script_basename]"
+[[ $run_as_root == 1 ]] && [[ $UID -ne 0 ]] && die "user is $USER, MUST be root to run [$script_basename]"
 [[ $run_as_root == -1 ]] && [[ $UID -eq 0 ]] && die "user is $USER, CANNOT be root to run [$script_basename]"
 
 initialise_output  # output settings
