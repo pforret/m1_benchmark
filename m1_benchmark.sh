@@ -86,8 +86,8 @@ main() {
     #TIP:> $script_prefix run
 
     input="$script_install_folder/sources/david-marcu-o0RZkkL072U-unsplash.jpg"
-    unique=$(echo "$HOSTNAME $os_name $os_machine" | hash 10)
-    result_folder="$script_install_folder/results/${os_name}-${os_machine}"
+    architecture=$(arch)
+    result_folder="$script_install_folder/results/${os_name}-${os_version}-$architecture"
     [[ ! -d "$result_folder" ]] && mkdir "$result_folder"
     machine_type=$(system_profiler SPHardwareDataType | awk -F: '/Model Identifier/ {gsub(" ",""); print $2}')
     ram_bytes=$(sysctl -n hw.memsize)
@@ -95,10 +95,12 @@ main() {
     cpu_count=$(sysctl -n hw.ncpu)
     gpu_type=$(system_profiler SPDisplaysDataType | grep Chipset | cut -d: -f2)
     install_date=$(< /var/log/install.log awk 'NR == 1 {print $1}')
+    unique=$(echo "$HOSTNAME $os_name $os_machine $architecture" | hash 10)
     output="$result_folder/$execution_day.$unique.md"
     (
-    echo "# $os_name $os_version $os_machine"
+    echo "# $os_name $os_version $architecture"
     echo "* Script executed : $execution_day"
+    echo "* Script version  : $script_version - $script_modified"
     echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gb GB RAM - $gpu_type GPU"
     echo "* OS Details      : $os_name $os_version"
     echo "* OS Install date : $install_date"
@@ -138,15 +140,22 @@ benchmark_ffmpeg() {
   # $2 = output
 
   echo " "
-  echo "## START FFMPEG:$SECONDS"
+  echo "## BENCHMARK FFMPEG"
   lowres="$tmp_dir/lowres.jpg"
   orginal_size=$(identify -format "%wx%h\n" "$1")
+  echo "* prep ffmpeg: $SECONDS"
   convert "$1" -resize 1% -modulate 100,1  -resize "$orginal_size!" "$lowres"
-  length=20
-  ffmpeg -loop 1 -i "$lowres" -loop 1 -i "$1" -r 12 -vcodec libx264 -pix_fmt yuv420p \
+  length=10
+  fps=10
+  echo "* start ffmpeg: $SECONDS"
+  FFMPEG=$(which ffmpeg)
+  echo "* ffmpeg version: $FFMPEG - $($FFMPEG -version | head -1)"
+  echo "* output length: $length secs @ $fps fps"
+  "$FFMPEG" -loop 1 -i "$lowres" -loop 1 -i "$1" -r "$fps" -vcodec libx264 -pix_fmt yuv420p \
     -filter_complex "[1:v][0:v]blend=all_expr='A*(if(gte(T,$length),1,T/$length))+B*(1-(if(gte(T,$length),1,T/$length)))'" \
     -t $length -y "$2" 2> /dev/null
-  echo "## FINISH FFMPEG:$SECONDS"
+  echo "* output size: $(du -m "$2")"
+  echo "* finish ffmpeg: $SECONDS"
 
 }
 
@@ -154,9 +163,14 @@ benchmark_primitive() {
   # $1 = input jpeg file
   # $2 = output gif file
   echo " "
-  echo "## START PRIMITIVE:$SECONDS"
-  primitive -i "$1" -o "$2" -s 1200 -r "80" -n "1000" -m 7 -bg FFFFFF
-  echo "## FINISH PRIMITIVE:$SECONDS"
+  echo "## BENCHMARK PRIMITIVE:$SECONDS"
+  echo "* start primitive: $SECONDS"
+  shapes=1000
+  width=1200
+  echo "* width: $width px / $shapes shapes"
+  primitive -i "$1" -o "$2" -s "$width" -n "$shapes" -m 7 -bg FFFFFF
+  echo "* output size: $(du -m "$2")"
+  echo "* finish primitive: $SECONDS"
 }
 
 #####################################################################
