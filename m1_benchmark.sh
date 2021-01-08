@@ -156,7 +156,7 @@ benchmark_ffmpeg() {
     -filter_complex "[1:v][0:v]blend=all_expr='A*(if(gte(T,$length),1,T/$length))+B*(1-(if(gte(T,$length),1,T/$length)))'" \
     -t $length -y "$2" 2> /dev/null
   output_kb=$(du -k "$2" | awk '{print $1}')
-  echo "* output size: $((output_kb / 1000)) KB"
+  echo "* output size: $output_kb KB"
   echo "* finish $benchmark: $SECONDS"
 
 }
@@ -173,7 +173,7 @@ benchmark_primitive() {
   echo "* width: $width px / $shapes shapes"
   primitive -i "$1" -o "$2" -s "$width" -n "$shapes" -m 7 -bg FFFFFF
   output_kb=$(du -k "$2" | awk '{print $1}')
-  echo "* output size: $((output_kb / 1000)) KB"
+  echo "* output size: $output_kb KB"
   echo "* finish $benchmark: $SECONDS"
 }
 
