@@ -87,7 +87,7 @@ main() {
 
     input="$script_install_folder/sources/david-marcu-o0RZkkL072U-unsplash.jpg"
     architecture=$(arch)
-    result_folder="$script_install_folder/results/$script_prefix-$script_version/$os_name-$os_version"
+    result_folder="$script_install_folder/results/$os_name-$os_version"
     [[ ! -d "$result_folder" ]] && mkdir -p "$result_folder"
     machine_type=$(system_profiler SPHardwareDataType | awk -F: '/Model Identifier/ {gsub(" ",""); print $2}')
     ram_bytes=$(sysctl -n hw.memsize)
@@ -95,8 +95,8 @@ main() {
     cpu_count=$(sysctl -n hw.ncpu)
     gpu_type=$(system_profiler SPDisplaysDataType | grep Chipset | cut -d: -f2)
     install_date=$(< /var/log/install.log awk 'NR == 1 {print $1}')
-    unique=$(echo "$HOSTNAME $os_name $os_machine $architecture" | hash 10)
-    output="$result_folder/$execution_day.$machine_type.$unique.md"
+    unique=$(echo "$HOSTNAME $os_name $os_machine $architecture" | hash)
+    output="$result_folder/$execution_day-$machine_type-$script_version-$unique.md"
     (
     echo "# $os_name $os_version $architecture"
     echo "* Script executed : $execution_day"
