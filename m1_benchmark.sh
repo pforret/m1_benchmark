@@ -99,8 +99,7 @@ main() {
       install_date=$(< /var/log/install.log awk 'NR == 1 {print $1}')
       ;;
     *)
-      machine_type="?"
-      which lshw &>/dev/null && machine_type=$(lshw 2>/dev/null | awk -F: '/product/ {gsub(" ",""); print $2}')
+      machine_type=$(uname -r | get_clean 1)
       machine_hardware="?"
       which lscpu &>/dev/null && machine_hardware=$(lshw 2>/dev/null | awk -F: '/product/ {gsub(" ",""); print $2}')
       ram_bytes="?"
@@ -651,6 +650,11 @@ recursive_readlink() {
   recursive_readlink "$link_folder/$link_name"
 }
 
+get_clean(){
+    cut -d: -f"$1" \
+  | awk '{gsub(/[\s\t]/,""); print}'
+}
+
 lookup_script_data() {
   readonly script_prefix=$(basename "${BASH_SOURCE[0]}" .sh)
   readonly script_basename=$(basename "${BASH_SOURCE[0]}")
@@ -699,8 +703,8 @@ lookup_script_data() {
     debug "Detected Linux"
     if [[ $(which lsb_release) ]]; then
       # 'normal' Linux distributions
-      os_name=$(lsb_release -i    | cut -d: -f2 | awk '{gsub (/[^\w\d\_\-]/,""); print}') # Ubuntu
-      os_version=$(lsb_release -r | cut -d: -f2 | awk '{gsub (/[^\w\d\_\-]/,""); print}') # 20.04
+      os_name=$(lsb_release -i    | get_clean 2) # Ubuntu
+      os_version=$(lsb_release -r | get_clean 2) # 20.04
     else
       # Synology, QNAP,
       os_name="Linux"
