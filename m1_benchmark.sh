@@ -89,24 +89,44 @@ main() {
     architecture=$(arch)
     result_folder="$script_install_folder/results/$os_name-$os_version"
     [[ ! -d "$result_folder" ]] && mkdir -p "$result_folder"
-    machine_type=$(system_profiler SPHardwareDataType | awk -F: '/Model Identifier/ {gsub(" ",""); print $2}')
-    ram_bytes=$(sysctl -n hw.memsize)
-    ram_gb=$(( ram_bytes / 1000000000 ))
-    cpu_count=$(sysctl -n hw.ncpu)
-    gpu_type=$(system_profiler SPDisplaysDataType | grep Chipset | cut -d: -f2)
-    install_date=$(< /var/log/install.log awk 'NR == 1 {print $1}')
+    case "$os_kernel" in
+    Darwin)
+      machine_type=$(system_profiler SPHardwareDataType | awk -F: '/Model Identifier/ {gsub(" ",""); print $2}')
+      machine_hardware=$(sysctl -n machdep.cpu.brand_string)
+      ram_bytes=$(sysctl -n hw.memsize)
+      cpu_count=$(sysctl -n hw.ncpu)
+      gpu_type=$(system_profiler SPDisplaysDataType | grep Chipset | cut -d: -f2)
+      install_date=$(< /var/log/install.log awk 'NR == 1 {print $1}')
+      ;;
+    *)
+      machine_type="?"
+      which lshw &>/dev/null && machine_type=$(lshw 2>/dev/null | awk -F: '/product/ {print $2}')
+      machine_hardware="?"
+      which lscpu &>dev/null && machine_hardware=$(lscpu | awk -F: '/Model name/ {print $2}')
+      ram_bytes="?"
+      which free &>/dev/null && ram_bytes=$(free -b | awk '/Mem:/ {print $2}')
+      cpu_count="?"
+      [[ -f /proc/cpuinfo ]] && cpu_count=$(< /proc/cpuinfo awk 'BEGIN {cores=0} /^processor/ {cores++;} END {print cores}')
+      gpu_type="?"
+      install_date="?"
+    esac
+
+    ram_gib=$(( ram_bytes / 1073741824 ))
     unique=$(echo "$HOSTNAME $os_name $os_machine $architecture" | hash)
     output="$result_folder/$execution_day-$machine_type-$script_version-$unique.md"
     (
     echo "# $os_name $os_version $architecture"
     echo "* Script executed : $execution_day"
     echo "* Script version  : $script_version - $script_modified"
-    echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gb GB RAM - $gpu_type GPU"
+    echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gib GiB RAM - $gpu_type GPU"
+    echo "* CPU details: $machine_hardware"
     echo "* OS Details      : $os_name $os_version"
     echo "* OS Install date : $install_date"
+
+    # shellcheck disable=SC2154
     benchmark_ffmpeg "$input" "$tmp_dir/xfade.mp4"
     benchmark_primitive "$input" "$tmp_dir/primitive.gif"
-    echo "Time to finish: $SECONDS"
+
     ) | tee "$output"
 
     ;;
@@ -135,6 +155,26 @@ do_list() {
   # < "$1"  do_analysis_stuff
 }
 
+stopwatch(){
+  if [[ $1 == "start" ]] ; then
+    t_start=$(date '+%s')
+    debug "* start benchmark @ $SECONDS secs"
+    if [[ "$os_kernel" == "Darwin" ]] ; then
+      ( sleep 30 ; echo -n "* Max CPU: " ; top -F -l 5 -ncols 5 | awk "/$2/ {print \$3}" | sort -n | tail -1 )&
+    else
+      ( sleep 30 ; echo -n "* Max CPU: " ; top -n 5 -b | awk "/$2/ {print \$9}" | sort -n | tail -1 )&
+    fi
+  else
+    t_stop=$(date '+%s')
+    benchmark="$2"
+    duration=$(( t_stop - t_start ))
+    debug "* end benchmark @ $duration secs - benchmark = $2 secs"
+    echo "* benchmark finished after $duration secs"
+    index=$(echo "$duration $benchmark" | awk '{printf("%.2f\n",100 * $2 / $1);}')
+    echo "* performance index: $index % (larger is faster)"
+  fi
+}
+
 benchmark_ffmpeg() {
   # $1 = start image
   # $2 = output
@@ -143,22 +183,21 @@ benchmark_ffmpeg() {
   echo " "
   echo "## BENCHMARK $benchmark"
   lowres="$tmp_dir/$benchmark.lowres.jpg"
-  orginal_size=$(identify -format "%wx%h\n" "$1")
+  original_size=$(identify -format "%wx%h\n" "$1")
   echo "* prep $benchmark: $SECONDS"
-  convert "$1" -resize 5% -modulate 100,1 -resize "$orginal_size!" "$lowres"
+  convert "$1" -resize 5% -modulate 100,1 -resize "$original_size!" "$lowres"
   length=5
   fps=10
-  echo "* start $benchmark: $SECONDS"
   FFMPEG=$(which ffmpeg)
+  stopwatch start ffmpeg
+  echo "* generating a cross-fade video with ffmpeg: $length secs @ $fps fps"
   echo "* ffmpeg version: $FFMPEG - $($FFMPEG -version | head -1)"
-  echo "* output length: $length secs @ $fps fps"
   "$FFMPEG" -loop 1 -i "$lowres" -loop 1 -i "$1" -r "$fps" -vcodec libx264 -pix_fmt yuv420p \
     -filter_complex "[1:v][0:v]blend=all_expr='A*(if(gte(T,$length),1,T/$length))+B*(1-(if(gte(T,$length),1,T/$length)))'" \
     -t $length -y "$2" 2> /dev/null
   output_kb=$(du -k "$2" | awk '{print $1}')
   echo "* output size: $output_kb KB"
-  echo "* finish $benchmark: $SECONDS"
-
+  stopwatch stop 70
 }
 
 benchmark_primitive() {
@@ -167,14 +206,16 @@ benchmark_primitive() {
   benchmark="PRIMITIVE"
   echo " "
   echo "## BENCHMARK $benchmark"
-  echo "* start $benchmark: $SECONDS"
+  stopwatch start primitive
   shapes=1000
   width=1200
-  echo "* width: $width px / $shapes shapes"
-  primitive -i "$1" -o "$2" -s "$width" -n "$shapes" -m 7 -bg FFFFFF
+  PRIMITIVE=$(which primitive)
+  echo "* generating a primitive sequence: width: $width px / $shapes shapes"
+  echo "* primitive version: $PRIMITIVE (fogleman/primitive)"
+  "$PRIMITIVE" -i "$1" -o "$2" -s "$width" -n "$shapes" -m 7 -bg FFFFFF
   output_kb=$(du -k "$2" | awk '{print $1}')
   echo "* output size: $output_kb KB"
-  echo "* finish $benchmark: $SECONDS"
+  stopwatch stop 97
 }
 
 #####################################################################
@@ -616,7 +657,7 @@ lookup_script_data() {
   [[ -n "${KSH_VERSION:-}" ]] && shell_brand="ksh" && shell_version="$KSH_VERSION"
   debug "Shell type : $shell_brand - version $shell_version"
 
-  readonly os_kernel=$(uname -s)
+  os_kernel=$(uname -s)
   os_version=$(uname -r) # 20.2.0
   os_machine=$(uname -m) # arm64
   install_package=""
@@ -635,12 +676,14 @@ lookup_script_data() {
     debug "Detected Linux"
     if [[ $(which lsb_release) ]]; then
       # 'normal' Linux distributions
-      os_name=$(lsb_release -i)    # Ubuntu
-      os_version=$(lsb_release -r) # 20.04
+      os_name=$(lsb_release -i | cut -d: -f2 | awk '{gsub (/ /,""); print}')    # Ubuntu
+      os_version=$(lsb_release -r | cut -d: -f2 | awk '{gsub (/ /,""); print}') # 20.04
     else
       # Synology, QNAP,
       os_name="Linux"
     fi
+    [[ -f /proc/info ]] && grep -i -q microsoft < /proc/info && os_name="$os_name (WSL)"
+
     [[ -x /bin/apt-cyg ]] && install_package="apt-cyg install"     # Cygwin
     [[ -x /bin/dpkg ]] && install_package="dpkg -i"                # Synology
     [[ -x /opt/bin/ipkg ]] && install_package="ipkg install"       # Synology
@@ -660,8 +703,8 @@ lookup_script_data() {
 
   # get last modified date of this script
   script_modified="??"
-  [[ "$os_kernel" == "Linux" ]] && script_modified=$(stat -c %y "$script_install_path" 2>/dev/null | cut -c1-16) # generic linux
-  [[ "$os_kernel" == "Darwin" ]] && script_modified=$(stat -f "%Sm" "$script_install_path" 2>/dev/null)          # for MacOS
+  [[ "$os_kernel" == "Linux" ]]  && script_modified=$(stat -c %y "$script_install_path" 2>/dev/null | cut -c1-16) # generic linux
+  [[ "$os_kernel" == "Darwin" ]] && script_modified=$(stat -f "%Sm" "$script_install_path" 2>/dev/null)           # for MacOS
 
   debug "Last modif : $script_modified"
   debug "Script ID  : $script_lines lines / md5: $script_hash"
