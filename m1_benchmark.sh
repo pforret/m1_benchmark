@@ -115,18 +115,22 @@ main() {
     unique=$(echo "$HOSTNAME $os_name $os_machine $architecture" | hash)
     output="$result_folder/$execution_day-$machine_type-$script_version-$unique.md"
     (
-    echo "# $os_name $os_version $architecture"
-    echo "* Script executed : $execution_day"
-    echo "* Script version  : $script_version - $script_modified"
-    echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gib GiB RAM - $gpu_type GPU"
-    echo "* CPU details: $machine_hardware"
-    echo "* OS Details      : $os_name $os_version"
-    echo "* OS Install date : $install_date"
+      echo "# $os_name $os_version $architecture"
+      echo "* Script executed : $execution_day"
+      echo "* Script version  : $script_version - $script_modified"
+      echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gib GiB RAM - $gpu_type GPU"
+      echo "* CPU details: $machine_hardware"
+      echo "* OS Details      : $os_name $os_version"
+      echo "* OS Install date : $install_date"
+      echo "* all indexes     : Apple Mac Mini M1 2020 8GB = 100%"
 
-    # shellcheck disable=SC2154
-    benchmark_ffmpeg "$input" "$tmp_dir/xfade.mp4"
-    benchmark_primitive "$input" "$tmp_dir/primitive.gif"
+      declare -a indexes
+      # shellcheck disable=SC2154
+      [[ -n $(which ffmpeg) ]] && benchmark_ffmpeg "$input" "$tmp_dir/xfade.mp4"
+      [[ -n $(which primitive) ]] && benchmark_primitive "$input" "$tmp_dir/primitive.gif"
 
+      echo " "
+      echo "* Combined performance index: $(combine_results) %"
     ) | tee "$output"
 
     ;;
@@ -151,8 +155,12 @@ main() {
 #####################################################################
 
 do_list() {
-  log_to_file "Analyze [$input]"
-  # < "$1"  do_analysis_stuff
+  find "$script_install_folder/results" -type f -name \*.md \
+  | while read -r result ; do
+      echo "-----"
+      echo "## $(basename "$result")"
+      < "$result" grep -e "Hardware details" -e "index"
+    done
 }
 
 stopwatch(){
@@ -169,9 +177,11 @@ stopwatch(){
     benchmark="$2"
     duration=$(( t_stop - t_start ))
     debug "* end benchmark @ $duration secs - benchmark = $2 secs"
-    echo "* benchmark finished after $duration secs"
+    echo "* benchmark finished after: $duration secs"
     index=$(echo "$duration $benchmark" | awk '{printf("%.2f\n",100 * $2 / $1);}')
-    echo "* performance index: $index % (larger is faster)"
+    echo "* performance index: $index %"
+    # shellcheck disable=SC2031
+    indexes+=("$index")
   fi
 }
 
@@ -184,20 +194,21 @@ benchmark_ffmpeg() {
   echo "## BENCHMARK $benchmark"
   lowres="$tmp_dir/$benchmark.lowres.jpg"
   original_size=$(identify -format "%wx%h\n" "$1")
-  echo "* prep $benchmark: $SECONDS"
+  debug "* prep $benchmark: $SECONDS"
   convert "$1" -resize 5% -modulate 100,1 -resize "$original_size!" "$lowres"
   length=5
   fps=10
   FFMPEG=$(which ffmpeg)
+  echo "* task: generating a cross-fade video with ffmpeg: $length secs @ $fps fps"
+  echo "* image dimensions: $original_size"
+  echo "* program: $FFMPEG - $($FFMPEG -version | head -1)"
   stopwatch start ffmpeg
-  echo "* generating a cross-fade video with ffmpeg: $length secs @ $fps fps"
-  echo "* ffmpeg version: $FFMPEG - $($FFMPEG -version | head -1)"
   "$FFMPEG" -loop 1 -i "$lowres" -loop 1 -i "$1" -r "$fps" -vcodec libx264 -pix_fmt yuv420p \
     -filter_complex "[1:v][0:v]blend=all_expr='A*(if(gte(T,$length),1,T/$length))+B*(1-(if(gte(T,$length),1,T/$length)))'" \
     -t $length -y "$2" 2> /dev/null
   output_kb=$(du -k "$2" | awk '{print $1}')
   echo "* output size: $output_kb KB"
-  stopwatch stop 70
+  stopwatch stop 75
 }
 
 benchmark_primitive() {
@@ -206,18 +217,28 @@ benchmark_primitive() {
   benchmark="PRIMITIVE"
   echo " "
   echo "## BENCHMARK $benchmark"
-  stopwatch start primitive
   shapes=1000
   width=1200
   PRIMITIVE=$(which primitive)
-  echo "* generating a primitive sequence: width: $width px / $shapes shapes"
-  echo "* primitive version: $PRIMITIVE (fogleman/primitive)"
+  echo "* task: generating a primitive sequence: width: $width px / $shapes shapes"
+  echo "* program: $PRIMITIVE (fogleman/primitive)"
+  stopwatch start primitive
   "$PRIMITIVE" -i "$1" -o "$2" -s "$width" -n "$shapes" -m 7 -bg FFFFFF
   output_kb=$(du -k "$2" | awk '{print $1}')
   echo "* output size: $output_kb KB"
-  stopwatch stop 97
+  stopwatch stop 95
 }
 
+combine_results(){
+  for i in "${indexes[@]}"; do
+    echo "$i"
+  done \
+  | awk '
+    BEGIN {product=1;}
+    {product = product * $1 / 100}
+    END {print int(product * 100)}
+    '
+}
 #####################################################################
 ################### DO NOT MODIFY BELOW THIS LINE ###################
 #####################################################################
