@@ -119,7 +119,7 @@ main() {
       echo "* Script executed : $execution_day"
       echo "* Script version  : $script_version - $script_modified"
       echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gib GiB RAM - $gpu_type GPU"
-      echo "* CPU details: $machine_hardware"
+      echo "* CPU details     : $machine_hardware"
       echo "* OS Details      : $os_name $os_version"
       echo "* OS Install date : $install_date"
       echo "* all indexes     : Apple Mac Mini M1 2020 8GB = 100%"
