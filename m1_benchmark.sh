@@ -115,6 +115,7 @@ main() {
     unique=$(echo "$HOSTNAME $os_name $os_machine $architecture" | hash)
     output="$result_folder/$execution_day-$machine_type-$unique.md"
     debug "output: $output"
+    declare -a indexes
     (
       echo "# $os_name $os_version $architecture"
       echo "* Script executed : $execution_day"
@@ -125,7 +126,6 @@ main() {
       echo "* OS Install date : $install_date"
       echo "* all indexes     : Apple Mac Mini M1 2020 8GB = 100%"
 
-      declare -a indexes
       # shellcheck disable=SC2154
       [[ -n $(which ffmpeg) ]] && benchmark_ffmpeg "$input" "$tmp_dir/xfade.mp4"
       [[ -n $(which primitive) ]] && benchmark_primitive "$input" "$tmp_dir/primitive.gif"
