@@ -30,9 +30,9 @@ list_options() {
   echo -n "
 #commented lines will be filtered
 flag|h|help|show usage
-flag|q|quiet|no output
+#flag|q|quiet|no output
 flag|v|verbose|output more
-flag|f|force|do not ask for confirmation (always yes)
+#flag|f|force|do not ask for confirmation (always yes)
 option|l|log_dir|folder for log files |$HOME/log/$script_prefix
 option|t|tmp_dir|folder for temp files|.tmp
 param|1|action|action to perform: run/list
@@ -109,11 +109,13 @@ main() {
       [[ -f /proc/cpuinfo ]] && cpu_count=$(< /proc/cpuinfo awk 'BEGIN {cores=0} /^processor/ {cores++;} END {print cores}')
       gpu_type="?"
       install_date="?"
+      [[ -d "/var" ]] && install_date=$(find /var -maxdepth 1 -type d -exec stat -c %y {} \; | sort | head -1 | cut -d' ' -f1)
     esac
 
     ram_gib=$(( ram_bytes / 1073741824 ))
     unique=$(echo "$HOSTNAME $os_name $os_machine $architecture" | hash)
-    output="$result_folder/$execution_day-$machine_type-$script_version-$unique.md"
+    output="$result_folder/$execution_day-$machine_type-$unique.md"
+    debug "output: $output"
     (
       echo "# $os_name $os_version $architecture"
       echo "* Script executed : $execution_day"
@@ -234,9 +236,9 @@ combine_results(){
     echo "$i"
   done \
   | awk '
-    BEGIN {product=1;}
-    {product = product * $1 / 100}
-    END {print int(product * 100)}
+    BEGIN {product=1;terms=0}
+    {product = product * $1 / 100; terms++;}
+    END {invert=1/terms; product=product ** invert; print int(product * 100)}
     '
 }
 #####################################################################
@@ -697,8 +699,8 @@ lookup_script_data() {
     debug "Detected Linux"
     if [[ $(which lsb_release) ]]; then
       # 'normal' Linux distributions
-      os_name=$(lsb_release -i | cut -d: -f2 | awk '{gsub (/ /,""); print}')    # Ubuntu
-      os_version=$(lsb_release -r | cut -d: -f2 | awk '{gsub (/ /,""); print}') # 20.04
+      os_name=$(lsb_release -i    | cut -d: -f2 | awk '{gsub (/[^\w\d\_\-]/,""); print}') # Ubuntu
+      os_version=$(lsb_release -r | cut -d: -f2 | awk '{gsub (/[^\w\d\_\-]/,""); print}') # 20.04
     else
       # Synology, QNAP,
       os_name="Linux"
