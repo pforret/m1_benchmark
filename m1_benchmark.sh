@@ -160,7 +160,7 @@ do_list() {
   | while read -r result ; do
       echo "-----"
       echo "## $(basename "$result")"
-      < "$result" grep -e "Hardware details" -e "index"
+      < "$result" grep -e "Hardware details" -e "index:"
     done
 }
 
