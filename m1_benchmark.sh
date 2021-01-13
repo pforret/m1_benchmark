@@ -100,11 +100,11 @@ main() {
       ;;
     *)
       machine_type="?"
-      which lshw &>/dev/null && machine_type=$(lshw 2>/dev/null | awk -F: '/product/ {print $2}')
+      which lshw &>/dev/null && machine_type=$(lshw 2>/dev/null | awk -F: '/product/ {gsub(" ",""); print $2}')
       machine_hardware="?"
-      which lscpu &>dev/null && machine_hardware=$(lscpu | awk -F: '/Model name/ {print $2}')
+      which lscpu &>/dev/null && machine_hardware=$(lshw 2>/dev/null | awk -F: '/product/ {gsub(" ",""); print $2}')
       ram_bytes="?"
-      which free &>/dev/null && ram_bytes=$(free -b | awk '/Mem:/ {print $2}')
+      which free &>/dev/null && ram_bytes=$(free -b | awk '/Mem:/ {gsub(" ",""); print $2}')
       cpu_count="?"
       [[ -f /proc/cpuinfo ]] && cpu_count=$(< /proc/cpuinfo awk 'BEGIN {cores=0} /^processor/ {cores++;} END {print cores}')
       gpu_type="?"
