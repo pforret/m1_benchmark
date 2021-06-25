@@ -101,9 +101,9 @@ main() {
     *)
       machine_type=$(uname -r | get_clean 1)
       machine_hardware="?"
-      which lscpu &>/dev/null && machine_hardware=$(lshw 2>/dev/null | awk -F: '/product/ {gsub(" ",""); print $2}')
+      command -v lscpu &>/dev/null && machine_hardware=$(lshw 2>/dev/null | awk -F: '/product/ {gsub(" ",""); print $2}')
       ram_bytes="?"
-      which free &>/dev/null && ram_bytes=$(free -b | awk '/Mem:/ {gsub(" ",""); print $2}')
+      command -v free &>/dev/null && ram_bytes=$(free -b | awk '/Mem:/ {gsub(" ",""); print $2}')
       cpu_count="?"
       [[ -f /proc/cpuinfo ]] && cpu_count=$(< /proc/cpuinfo awk 'BEGIN {cores=0} /^processor/ {cores++;} END {print cores}')
       gpu_type="?"
@@ -127,8 +127,8 @@ main() {
       echo "* all indexes     : Apple Mac Mini M1 2020 8GB = 100%"
 
       # shellcheck disable=SC2154
-      [[ -n $(which ffmpeg) ]] && benchmark_ffmpeg "$input" "$tmp_dir/xfade.mp4"
-      [[ -n $(which primitive) ]] && benchmark_primitive "$input" "$tmp_dir/primitive.gif"
+      [[ -n $(command -v ffmpeg) ]] && benchmark_ffmpeg "$input" "$tmp_dir/xfade.mp4"
+      [[ -n $(command -v primitive) ]] && benchmark_primitive "$input" "$tmp_dir/primitive.gif"
 
       echo " "
       echo "* Combined performance index: $(combine_results) %"
@@ -199,7 +199,7 @@ benchmark_ffmpeg() {
   convert "$1" -resize 5% -modulate 100,1 -resize "$original_size!" "$lowres"
   length=5
   fps=10
-  FFMPEG=$(which ffmpeg)
+  FFMPEG=$(command -v ffmpeg)
   echo "* task: generating a cross-fade video with ffmpeg: $length secs @ $fps fps"
   echo "* image dimensions: $original_size"
   echo "* program: $FFMPEG - $($FFMPEG -version | head -1)"
@@ -220,7 +220,7 @@ benchmark_primitive() {
   echo "## BENCHMARK $benchmark"
   shapes=1000
   width=1200
-  PRIMITIVE=$(which primitive)
+  PRIMITIVE=$(command -v primitive)
   echo "* task: generating a primitive sequence: width: $width px / $shapes shapes"
   echo "* program: $PRIMITIVE (fogleman/primitive)"
   stopwatch start primitive
@@ -252,7 +252,7 @@ IFS=$'\n\t'
 hash() {
   length=${1:-6}
   # shellcheck disable=SC2230
-  if [[ -n $(which md5sum) ]]; then
+  if [[ -n $(command -v md5sum) ]]; then
     # regular linux
     md5sum | cut -c1-"$length"
   else
@@ -474,7 +474,7 @@ require_binaries() {
     [[ -z "$required_binary" ]] && continue
     # shellcheck disable=SC2230
     debug "Check for existence of [$required_binary]"
-    [[ -n $(which "$required_binary") ]] && continue
+    [[ -n $(command -v "$required_binary") ]] && continue
     required_package=$(echo "$line" | cut -d'|' -f2)
     if [[ $(echo "$required_package" | wc -w) -gt 1 ]]; then
       # example: setver|basher install setver
@@ -701,7 +701,7 @@ lookup_script_data() {
     ;;
   Linux | GNU*)
     debug "Detected Linux"
-    if [[ $(which lsb_release) ]]; then
+    if [[ $(command -v lsb_release) ]]; then
       # 'normal' Linux distributions
       os_name=$(lsb_release -i    | get_clean 2) # Ubuntu
       os_version=$(lsb_release -r | get_clean 2) # 20.04
@@ -782,8 +782,8 @@ import_env_if_any() {
   done
 }
 
-[[ $run_as_root == 1 ]] && [[ $UID -ne 0 ]] && die "user is $USER, MUST be root to run [$script_basename]"
-[[ $run_as_root == -1 ]] && [[ $UID -eq 0 ]] && die "user is $USER, CANNOT be root to run [$script_basename]"
+[[ ${run_as_root} == 1 ]]  && [[ ${UID} -ne 0 ]] && die "user is ${USER}, MUST be root to run [$script_basename]"
+[[ ${run_as_root} == -1 ]] && [[ ${UID} -eq 0 ]] && die "user is ${USER}, CANNOT be root to run [${script_basename}]"
 
 initialise_output  # output settings
 lookup_script_data # find installation folder
@@ -793,7 +793,7 @@ import_env_if_any  # overwrite with .env if any
 if [[ $sourced -eq 0 ]]; then
   parse_options "$@"    # overwrite with specified options if any
   prep_log_and_temp_dir # clean up debug and temp folder
-  main                  # run main program
+  main                  # run main program./m1
   safe_exit             # exit and clean up
 else
   # just disable the trap, don't execute main
