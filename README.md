@@ -10,6 +10,10 @@
 
 Some benchmarks of MacOS M1 (Apple Silicon)
 
+## Prerequisities
+
+To run the benchmark you need [gawk](https://www.gnu.org/software/gawk/), [go](https://golang.org), [primitive](https://github.com/fogleman/primitive) and [ffmpeg](https://ffmpeg.org) installed on your machine.
+
 ## Installation
 
 ```
