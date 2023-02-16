@@ -157,6 +157,7 @@ main() {
 
 do_list() {
   find "$script_install_folder/results" -type f -name \*.md \
+  | sort \
   | while read -r result ; do
       echo "-----"
       echo "## $(basename "$result")"
