@@ -299,8 +299,10 @@ initialise_output() {
   fi
   error_prefix="${col_red}>${col_reset}"
 
-  readonly nbcols=$(tput cols 2>/dev/null || echo 80)
-  readonly wprogress=$((nbcols - 5))
+  local columns
+  columns=$(tput cols 2>/dev/null || echo 80)
+  wprogress=$((columns - 5))
+  declare -r wprogress
 }
 
 out() { ((quiet)) || printf '%b\n' "$*"; }
@@ -319,7 +321,7 @@ announce() {
 
 progress() {
   ((quiet)) || (
-    if is_set ${piped:-0}; then
+    if is_set "${piped:-0}"; then
       out "$*" >&2
     else
       printf "... %-${wprogress}b\r" "$*                                             " >&2
@@ -656,16 +658,15 @@ get_clean(){
 }
 
 lookup_script_data() {
-  readonly script_prefix=$(basename "${BASH_SOURCE[0]}" .sh)
-  readonly script_basename=$(basename "${BASH_SOURCE[0]}")
-  readonly execution_day=$(date "+%Y-%m-%d")
-  #readonly execution_year=$(date "+%Y")
+  script_prefix=$(basename "${BASH_SOURCE[0]}" .sh)
+  script_basename=$(basename "${BASH_SOURCE[0]}")
+  execution_day=$(date "+%Y-%m-%d")
 
   script_install_path="${BASH_SOURCE[0]}"
   debug "Script path: $script_install_path"
   script_install_path=$(recursive_readlink "$script_install_path")
   debug "Actual path: $script_install_path"
-  readonly script_install_folder="$(dirname "$script_install_path")"
+  script_install_folder="$(dirname "$script_install_path")"
   if [[ -f "$script_install_path" ]]; then
     script_hash=$(hash <"$script_install_path" 8)
     script_lines=$(awk <"$script_install_path" 'END {print NR}')
@@ -738,9 +739,9 @@ lookup_script_data() {
 
   # if run inside a git repo, detect for which remote repo it is
   if git status &>/dev/null; then
-    readonly git_repo_remote=$(git remote -v | awk '/(fetch)/ {print $2}')
+    git_repo_remote=$(git remote -v | awk '/(fetch)/ {print $2}')
     debug "git remote : $git_repo_remote"
-    readonly git_repo_root=$(git rev-parse --show-toplevel)
+    git_repo_root=$(git rev-parse --show-toplevel)
     debug "git folder : $git_repo_root"
   else
     readonly git_repo_root=""
