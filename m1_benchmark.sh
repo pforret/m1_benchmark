@@ -95,7 +95,7 @@ main() {
       machine_hardware=$(sysctl -n machdep.cpu.brand_string)
       ram_bytes=$(sysctl -n hw.memsize)
       cpu_count=$(sysctl -n hw.ncpu)
-      gpu_type=$(system_profiler SPDisplaysDataType | grep Chipset | cut -d: -f2)
+      gpu_type=$(system_profiler SPDisplaysDataType | grep Chipset | cut -d: -f2 | xargs)
       install_date=$(< /var/log/install.log awk 'NR == 1 {print $1}')
       ;;
     *)
@@ -121,7 +121,7 @@ main() {
       echo "* Script executed : $execution_day"
       echo "* Script version  : $script_version - $script_modified"
       echo "* Hardware details: $machine_type - $cpu_count CPUs - $ram_gib GiB RAM - $gpu_type GPU"
-      echo "* CPU details     : $machine_hardware"
+      echo "* CPU Details     : $machine_hardware"
       echo "* OS Details      : $os_name $os_version"
       echo "* OS Install date : $install_date"
       echo "* all indexes     : Apple Mac Mini M1 2020 8GB = 100%"
@@ -139,7 +139,13 @@ main() {
   list)
     #TIP: use «$script_prefix list» to show all results
     #TIP:> $script_prefix list input.txt output.pdf
-    do_list
+  find "$script_install_folder/results" -type f -name \*.md \
+  | sort \
+  | while read -r result ; do
+      echo "-----"
+      echo "## $(basename "$result" .md)"
+      < "$result" grep -i -e "Hardware details" -e "index:" -e "CPU details" -e "Max CPU" -e "OS Details"
+    done
     ;;
 
   *)
@@ -155,24 +161,14 @@ main() {
 ## Put your helper scripts here
 #####################################################################
 
-do_list() {
-  find "$script_install_folder/results" -type f -name \*.md \
-  | sort \
-  | while read -r result ; do
-      echo "-----"
-      echo "## $(basename "$result")"
-      < "$result" grep -e "Hardware details" -e "index:"
-    done
-}
-
 stopwatch(){
   if [[ $1 == "start" ]] ; then
     t_start=$(date '+%s')
-    debug "* start benchmark @ $SECONDS secs"
+    debug "* start benchmark $benchmark @ $SECONDS secs"
     if [[ "$os_kernel" == "Darwin" ]] ; then
-      ( sleep 30 ; echo -n "* Max CPU: " ; top -F -l 5 -ncols 5 | awk "/$2/ {print \$3}" | sort -n | tail -1 )&
+      ( sleep 10 ; echo -n "* Max CPU: " ; top -F -l 5 -ncols 5 | awk "/$2/ {print \$3}" | sort -n | tail -1 )&
     else
-      ( sleep 30 ; echo -n "* Max CPU: " ; top -n 5 -b | awk "/$2/ {print \$9}" | sort -n | tail -1 )&
+      ( sleep 10 ; echo -n "* Max CPU: " ; top -n 5 -b | awk "/$2/ {print \$9}" | sort -n | tail -1 )&
     fi
   else
     t_stop=$(date '+%s')
